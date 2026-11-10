@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quotle</title>
+  <meta name="description" content="Guess the European company from its stock chart. A new chart every day.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="logo-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><polyline points="2,17 8,11 12,14 22,4" /><polyline points="16,4 22,4 22,10" /></svg>
+      </span>
+      <div>
+        <div class="logo-text">Quotle</div>
+        <div class="tagline" data-i18n="tagline"></div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <select id="lang" aria-label="Language"></select>
+      <button class="icon-btn" id="helpBtn" aria-label="?">?</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-mode="daily"><span data-i18n="daily"></span> <span id="dayNum" class="mono"></span></button>
+      <button class="tab" data-mode="practice" data-i18n="practice"></button>
+    </div>
+
+    <section class="chart-card">
+      <canvas id="chart" aria-label="Stock chart"></canvas>
+      <div class="chart-base mono">100</div>
+    </section>
+
+    <section id="playArea">
+      <form id="guessForm" autocomplete="off">
+        <div class="input-wrap">
+          <input id="guessInput" type="text" spellcheck="false">
+          <ul id="suggestions" role="listbox"></ul>
+        </div>
+        <button type="submit" class="btn primary" data-i18n="guess"></button>
+      </form>
+      <div class="meta-row">
+        <span id="attemptLabel" class="muted"></span>
+        <span id="toast" class="toast"></span>
+      </div>
+    </section>
+
+    <section id="result" class="result hidden"></section>
+
+    <ol id="guesses" class="guesses"></ol>
+
+    <section class="hints">
+      <h2 data-i18n="hintsTitle"></h2>
+      <div id="hintList" class="hint-grid"></div>
+    </section>
+
+    <section id="stats" class="stats"></section>
+  </main>
+
+  <dialog id="help">
+    <h2 data-i18n="howTitle"></h2>
+    <p data-i18n="how1"></p>
+    <p data-i18n="how2"></p>
+    <p data-i18n="how3"></p>
+    <form method="dialog"><button class="btn primary" data-i18n="close"></button></form>
+  </dialog>
+
+  <script src="i18n.js"></script>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
