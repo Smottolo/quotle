@@ -79,17 +79,6 @@
     const tot = y * 12 + (m - 1) + i;
     return { year: Math.floor(tot / 12), month: tot % 12 };
   }
-  function crashOf(c) {
-    const s = c.series;
-    let peak = 0, best = 0, peakIdx = 0, troughIdx = 0, bestPeak = 0;
-    for (let i = 0; i < s.length; i++) {
-      if (s[i] > s[peak]) peak = i;
-      const dd = 1 - s[i] / s[peak];
-      if (dd > best) { best = dd; troughIdx = i; bestPeak = peak; }
-    }
-    peakIdx = bestPeak;
-    return { peakIdx, troughIdx, depth: Math.round(best * 100), year: monthAt(c, troughIdx).year };
-  }
 
   // ---------- stato ----------
   let mode = "daily";
@@ -183,14 +172,13 @@
 
     const c = game.company, s = c.series;
     const misses = game.guesses.filter((g) => g !== c.name).length;
-    const showCrash = game.done; // il crollo più grosso si evidenzia a fine partita
     ctx.font = "500 10px 'JetBrains Mono', monospace";
     const yLabel = (v) => String(Math.round(v));
     const padL = Math.ceil(Math.max(ctx.measureText(yLabel(Math.max(...s))).width, ctx.measureText(yLabel(Math.min(...s))).width)) + 12, padR = 10, padT = 14, padB = 26;
     const min = Math.min(...s), max = Math.max(...s);
     const x = (i) => padL + (i / (s.length - 1)) * (w - padL - padR);
     const y = (v) => padT + (1 - (v - min) / (max - min || 1)) * (h - padT - padB);
-    const accent = css("--accent"), muted = css("--muted"), gold = css("--gold");
+    const accent = css("--accent"), muted = css("--muted");
 
     // griglia con i valori sull'asse Y
     ctx.lineWidth = 1; ctx.font = "500 10px 'JetBrains Mono', monospace"; ctx.textBaseline = "middle";
@@ -223,22 +211,6 @@
     s.forEach((v, i) => (i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v))));
     ctx.strokeStyle = accent; ctx.lineWidth = 2.2; ctx.lineJoin = "round"; ctx.stroke();
 
-    // crollo più grosso
-    if (showCrash) {
-      const cr = crashOf(c);
-      ctx.fillStyle = "rgba(255,207,92,.08)";
-      ctx.fillRect(x(cr.peakIdx), padT, x(cr.troughIdx) - x(cr.peakIdx), h - padT - padB);
-      ctx.fillStyle = gold;
-      ctx.beginPath(); ctx.arc(x(cr.troughIdx), y(s[cr.troughIdx]), 4.5, 0, Math.PI * 2); ctx.fill();
-      ctx.font = "600 12px 'JetBrains Mono', monospace";
-      const label = `${cr.year}  −${cr.depth}%`;
-      const tw = ctx.measureText(label).width;
-      let lx = x(cr.troughIdx) - tw / 2;
-      lx = Math.max(padL, Math.min(lx, w - padR - tw));
-      let ly = y(s[cr.troughIdx]) + 20;
-      if (ly > h - padB - 2) ly = y(s[cr.troughIdx]) - 12;
-      ctx.fillText(label, lx, ly);
-    }
     // punto finale
     ctx.fillStyle = accent;
     ctx.beginPath(); ctx.arc(x(s.length - 1), y(s[s.length - 1]), 4, 0, Math.PI * 2); ctx.fill();
