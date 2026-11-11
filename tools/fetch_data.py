@@ -85,6 +85,21 @@ def fetch(ticker):
     return out
 
 
+def fetch_capex(ticker):
+    """Ultimo capex annuo disponibile (valore positivo, valuta, anno) o None."""
+    url = (f"https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/{ticker}"
+           f"?type=annualCapitalExpenditure&period1=1500000000&period2={int(time.time()) + 86400}")
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        res = json.load(r)["timeseries"]["result"][0]
+    rows = [x for x in res.get("annualCapitalExpenditure", []) if x and x.get("reportedValue")]
+    if not rows:
+        return None
+    last = max(rows, key=lambda x: x["asOfDate"])
+    return {"value": abs(last["reportedValue"]["raw"]), "currency": last.get("currencyCode", "EUR"),
+            "year": last["asOfDate"][:4]}
+
+
 def biggest_crash_year(prices):
     """Anno in cui termina il calo più profondo dal massimo precedente."""
     peak, best, year = prices[0][1], 0.0, prices[0][0][:4]
@@ -109,14 +124,20 @@ def main():
             continue
         base = prices[0][1]
         year, depth = biggest_crash_year(prices)
+        try:
+            capex = fetch_capex(ticker)
+        except Exception as e:
+            print(f"  ! {name}: capex non disponibile ({e})", file=sys.stderr)
+            capex = None
         out.append({
             "name": name, "ticker": ticker.split(".")[0], "sector": sector,
             "country": country, "domain": domain, "aliases": aliases,
             "start": prices[0][0], "end": prices[-1][0],
-            "crashYear": year, "crashDepth": depth,
+            "crashYear": year, "crashDepth": depth, "capex": capex,
             "series": [round(p / base * 100, 1) for _, p in prices],
         })
-        print(f"  ✓ {name}: {len(prices)} mesi, crollo {depth}% nel {year}")
+        cx = f"capex {capex['value'] / 1e9:.2f} mld {capex['currency']} ({capex['year']})" if capex else "capex —"
+        print(f"  ✓ {name}: {len(prices)} mesi, crollo {depth}% nel {year}, {cx}")
         time.sleep(0.3)
     with open(OUT, "w", encoding="utf-8") as f:
         f.write("// Generato da tools/fetch_data.py — non modificare a mano\n")

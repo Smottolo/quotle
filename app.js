@@ -7,7 +7,7 @@
   const MAX = 6;
   const EPOCH = new Date(2026, 10, 10); // giorno #1 = 10 novembre 2026
   const SEED = 20261110;
-  const HINTS = ["sector", "country", "crash", "initial", "logo"];
+  const HINTS = ["sector", "country", "capex", "initial", "logo"];
   const LANG_NAMES = { it: "Italiano", en: "English", es: "Español", fr: "Français", de: "Deutsch" };
 
   const $ = (s) => document.querySelector(s);
@@ -56,16 +56,21 @@
   const norm = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
   const keysOf = (c) => [c.name, c.ticker, ...c.aliases].map(norm);
   const findExact = (q) => { const n = norm(q); return n ? DATA.find((c) => keysOf(c).includes(n)) : undefined; };
+  // Ordine: 1) il nome inizia con il testo, 2) una parola del nome inizia con il testo,
+  // 3) ticker/alias iniziano con il testo (da 2 lettere), 4) il nome contiene il testo (da 3 lettere).
+  const words = (name) => name.split(/[\s\-&.']+/).map(norm).filter(Boolean);
   function search(q) {
     const n = norm(q);
     if (!n) return [];
-    const starts = [], contains = [];
+    const tiers = [[], [], [], []];
     for (const c of DATA) {
-      const keys = keysOf(c);
-      if (keys.some((k) => k.startsWith(n))) starts.push(c);
-      else if (keys.some((k) => k.includes(n))) contains.push(c);
+      const name = norm(c.name), extra = [c.ticker, ...c.aliases].map(norm);
+      if (name.startsWith(n)) tiers[0].push(c);
+      else if (words(c.name).some((w) => w.startsWith(n))) tiers[1].push(c);
+      else if (n.length >= 2 && extra.some((k) => k.startsWith(n))) tiers[2].push(c);
+      else if (n.length >= 3 && name.includes(n)) tiers[3].push(c);
     }
-    return [...starts, ...contains].slice(0, 8);
+    return tiers.flat().slice(0, 8);
   }
 
   // ---------- analisi del grafico ----------
@@ -178,26 +183,33 @@
 
     const c = game.company, s = c.series;
     const misses = game.guesses.filter((g) => g !== c.name).length;
-    const showCrash = game.done || misses > HINTS.indexOf("crash");
-    const padL = 6, padR = 10, padT = 14, padB = game.done ? 26 : 10;
+    const showCrash = game.done; // il crollo più grosso si evidenzia a fine partita
+    ctx.font = "500 10px 'JetBrains Mono', monospace";
+    const yLabel = (v) => String(Math.round(v));
+    const padL = Math.ceil(Math.max(ctx.measureText(yLabel(Math.max(...s))).width, ctx.measureText(yLabel(Math.min(...s))).width)) + 12, padR = 10, padT = 14, padB = 26;
     const min = Math.min(...s), max = Math.max(...s);
     const x = (i) => padL + (i / (s.length - 1)) * (w - padL - padR);
     const y = (v) => padT + (1 - (v - min) / (max - min || 1)) * (h - padT - padB);
     const accent = css("--accent"), muted = css("--muted"), gold = css("--gold");
 
-    // griglia
-    ctx.strokeStyle = "rgba(255,255,255,.05)"; ctx.lineWidth = 1;
+    // griglia con i valori sull'asse Y
+    ctx.lineWidth = 1; ctx.font = "500 10px 'JetBrains Mono', monospace"; ctx.textBaseline = "middle";
     for (let k = 0; k <= 4; k++) {
       const yy = padT + (k / 4) * (h - padT - padB);
+      ctx.strokeStyle = "rgba(255,255,255,.05)";
       ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(w - padR, yy); ctx.stroke();
+      const val = max - (k / 4) * (max - min);
+      ctx.fillStyle = muted;
+      ctx.fillText(yLabel(val), padL - 8 - ctx.measureText(yLabel(val)).width, yy);
     }
+    ctx.textBaseline = "alphabetic";
     // linea base 100
     if (min < 100 && max > 100) {
       ctx.setLineDash([4, 5]); ctx.strokeStyle = "rgba(255,255,255,.18)";
       ctx.beginPath(); ctx.moveTo(padL, y(100)); ctx.lineTo(w - padR, y(100)); ctx.stroke();
       ctx.setLineDash([]);
       ctx.fillStyle = muted; ctx.font = "500 10px 'JetBrains Mono', monospace";
-      ctx.fillText("100", padL + 2, y(100) - 5);
+      ctx.fillText("100", padL + 4, y(100) - 5);
     }
     // area
     const grad = ctx.createLinearGradient(0, padT, 0, h - padB);
@@ -231,8 +243,8 @@
     ctx.fillStyle = accent;
     ctx.beginPath(); ctx.arc(x(s.length - 1), y(s[s.length - 1]), 4, 0, Math.PI * 2); ctx.fill();
 
-    // anni sull'asse (solo a partita finita)
-    if (game.done) {
+    // anni sull'asse X
+    {
       ctx.fillStyle = muted; ctx.font = "500 10px 'JetBrains Mono', monospace";
       const years = Math.ceil(s.length / 12);
       const step = years > 6 ? 2 : 1;
@@ -257,7 +269,13 @@
     switch (key) {
       case "sector": return esc((SECTORS[c.sector] || {})[lang] || (SECTORS[c.sector] || {}).en || c.sector);
       case "country": return `${flag(c.country)} ${esc(countryName(c.country))}`;
-      case "crash": { const cr = crashOf(c); return esc(t("hint_crashText", { depth: cr.depth, year: cr.year })); }
+      case "capex": {
+        if (!c.capex) return esc(t("hint_capexNone"));
+        let v;
+        try { v = new Intl.NumberFormat(lang, { style: "currency", currency: c.capex.currency, notation: "compact", maximumFractionDigits: 1 }).format(c.capex.value); }
+        catch { v = `${(c.capex.value / 1e9).toFixed(1)} B ${c.capex.currency}`; }
+        return esc(t("hint_capexText", { value: v, year: c.capex.year }));
+      }
       case "initial": return `<span class="initial">${esc([...c.name][0].toUpperCase())}</span>`;
       case "logo": return `<img class="logo" src="${logoUrl(c)}" alt="" referrerpolicy="no-referrer">`;
     }
